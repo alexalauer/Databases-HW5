@@ -1,0 +1,316 @@
+---
+title: Homework 5 - Documenting an HR database
+author: Alexa Lauer
+date: last-modified
+format:
+    html:
+        theme: cosmo
+        toc: true
+        embed-resources: true
+        code-copy: true
+---
+
+Github repo: https://github.com/cmsc-vcu/cmsc408-fa2024-hw5-alexalauer
+
+
+# Description
+
+The purpose of this database is to manage and organize employee and organizational information within a company, facilitating effective human resource management and decision-making processes. It serves as a centralized system to store comprehensive data about employees, their job roles, departments, and locations, enabling efficient retrieval and reporting. The database comprises nine major tables that capture various aspects of organizational structure and employee details.
+
+The **Countries** table stores information about countries, linking each to a specific region. The **Departments** table contains data about different departments, including department names, managers, and locations. The **Employees** table holds essential employee information, such as names, contact details, job titles, and salary information. The **Emp_detail_view** provides a comprehensive view of employee data, integrating information from multiple tables to display complete profiles, including job titles and locations. The **Jobs** table defines job roles and associated salary ranges, while the Job_grades table categorizes these roles into grades based on salary thresholds. The **Job_history** table tracks employees' previous positions and departments over time, and the **Locations** table provides details about physical office locations. Lastly, the **Regions** table organizes countries into broader regions. This structured setup allows for detailed querying and reporting, making it easy to analyze employee data and departmental performance while supporting the company's HR strategies.
+
+# Chen diagram
+
+The following diagram highlights the major relations in the database.
+
+```{dot}
+//| label: fig-chen-employee-database
+//| fig-cap: "A Chen Diagram for Employee Management Database"
+//| fig-width: 100%
+graph ER {
+    bgcolor=transparent;
+
+    layout=neato;
+    scale=1.2;
+
+    node [fontname="Helvetica,Arial,sans-serif",fontsize=10];
+
+    // Define entities (rectangles for major tables)
+    node [shape=box];
+    Countries;
+    Departments;
+    Employees;
+    Jobs;
+    Job_grades;
+    Job_history;
+    Locations;
+    Regions;
+
+    // Define relationships (diamonds for connections)
+    node [shape=diamond,style=filled,color=lightgrey];
+    "works_in";
+    "located_at";
+    "has_job";
+    "belongs_to";
+    "has_grade";
+    "located_in";
+    "region_of";
+    "recorded_in";
+    "held_in";
+
+    // Set edges between entities and relationships
+    edge [fontname="Helvetica,Arial,sans-serif",fontsize=10];
+
+    Employees -- "works_in";
+    "works_in" -- Departments;
+
+    Departments -- "located_at";
+    "located_at" -- Locations;
+
+    Jobs -- "has_grade";
+    "has_grade" -- Job_grades;
+
+    Employees -- "has_job";
+    "has_job" -- Jobs;
+
+    Employees -- "belongs_to";
+    "belongs_to" -- Job_history;
+
+    Job_history -- "recorded_in";
+    "recorded_in" -- Departments;
+
+    Job_history -- "held_in";
+    "held_in" -- Jobs;
+
+    Locations -- "located_in";
+    "located_in" -- Countries;
+
+    Countries -- "region_of";
+    "region_of" -- Regions;
+}
+```
+
+# Crows foot diagram
+
+The following diagram provides greater detail on the entities and attributes and highlights the cardinality and participation of the relations.
+
+```{mermaid}
+erDiagram
+    %% Define entities and their attributes
+    Countries {
+        int country_id
+        string country_name
+        int region_id
+    }
+    
+    Departments {
+        int department_id
+        string department_name
+        int manager_id
+        int location_id
+    }
+
+    Employees {
+        int employee_id
+        string first_name
+        string last_name
+        string email
+        string phone_number
+        date hire_date
+        int job_id
+        float salary
+        float commission_pct
+        int manager_id
+        int department_id
+    }
+
+    Jobs {
+        int job_id
+        string job_title
+        float min_salary
+        float max_salary
+    }
+
+    Job_grades {
+        string grade_level
+        float lowest_sal
+        float highest_sal
+    }
+
+    Job_history {
+        int employee_id
+        date start_date
+        date end_date
+        int job_id
+        int department_id
+    }
+
+    Locations {
+        int location_id
+        string street_address
+        string postal_code
+        string city
+        string state_province
+        int country_id
+    }
+
+    Regions {
+        int region_id
+        string region_name
+    }
+
+    %% Define relationships and cardinality
+    Employees ||--o{ Departments : "works in"
+    Employees ||--o{ Jobs : "assigned to"
+    Employees ||--o{ Job_history : "has"
+    
+    Departments ||--o{ Locations : "located at"
+    Locations ||--o{ Countries : "part of"
+    Countries ||--o{ Regions : "in"
+
+    Jobs ||--o{ Job_grades : "has"
+    Job_history ||--o{ Departments : "recorded in"
+    Job_history ||--o{ Jobs : "held in"
+    
+    %% Optional: to show views as separate entities
+    Emp_detail_view ||--|| Employees : "based on"
+    Emp_detail_view ||--|| Jobs : "based on"
+    Emp_detail_view ||--|| Departments : "based on"
+    Emp_detail_view ||--|| Locations : "based on"
+    Emp_detail_view ||--|| Countries : "based on"
+    Emp_detail_view ||--|| Regions : "based on"
+```
+
+# Listing of tables in the database
+
+The following python blocks highlight the steps used to document the tables in the database.  The code is left in the report to show how fun it was to write python!
+
+## Load libraries
+
+First import the necessary libraries, os, pandas, sqlalchemy, dotenv, IPython.display, and tabyulate. 
+The code defines a helper function to display a pandas dataframe as a table in a Quarto or Jupyter environment using a markdown-style grid format. This enhances the presentation of data tables by making them more readable and neatly formatted.
+
+```{python}
+import os
+import pandas as pd
+from sqlalchemy import create_engine, text
+from dotenv import load_dotenv
+from IPython.display import Markdown
+from tabulate import tabulate
+
+def display_dataframe_as_table( df, width="100%" ):
+    """ Display dataframe in pretty format for Quarto """
+    markdown_table = tabulate(df, headers='keys', tablefmt="grid",showindex=False)
+    html_table = markdown_table
+    display(Markdown(html_table))
+    
+```
+
+## Get credentials
+
+This code loads database credentials (username, password, host, and database name) from a .env file and stores them in a dictionary (config). The dictionary can then be used to establish a connection to a database using these credentials, for example with SQLAlchemy. This approach is secure because it avoids hardcoding sensitive information directly in the code.
+
+```{python}
+# load credentials from file ~/.env to OS environment
+load_dotenv()
+
+# use these credentials to populate a dictionary
+config = {
+  'user': os.getenv("HW5_USER"),
+  'password': os.getenv("HW5_PASSWORD"),
+  'host': os.getenv("HW5_HOST"),
+  'database': os.getenv("HW5_DB_NAME")
+}
+```
+
+## Open connection to database
+
+This code constructs a connection string for a MySQL database using credentials from the previous config dictionary. It creates an SQLAlchemy Engine for the connection, and also prints a sanitized version of the connection string with the password hidden.
+
+```{python}
+
+engine_uri = f"mysql+pymysql://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
+cnx = create_engine(engine_uri)
+
+engine_uri_for_show = f"mysql+pymysql://{config['user']}:**pwd-goes-here**@{config['host']}/{config['database']}"
+print(engine_uri_for_show)
+
+```
+
+## Print list of tables 
+
+In this code chunk, the SQL command show tables is defined to retrieve a list of all tables within the current database. The subsequent block of code attempts to execute this SQL command using the pd.read_sql function, which sends the query to the database connection specified by cnx. If the execution is successful, the resulting DataFrame, which contains the names of the tables, has its column labeled as "table_name" for clarity. If an error occurs during the query execution—such as a connection issue or an invalid SQL statement—the exception is caught, and an error message is printed, indicating what went wrong. In this case, an empty DataFrame is assigned to the tables variable to ensure that the code continues running without interruption. Finally, the display_dataframe_as_table function is called to present the contents of the tables DataFrame in a visually appealing format, allowing users to easily see the list of tables in the database.
+
+```{python}
+sql = "show tables"
+```
+
+```{python}
+# use SQL command to show tables in database
+try:
+    tables = pd.read_sql(sql,cnx)
+    tables.columns = ["table_name"]
+    tables
+except Exception as e:
+    message = str(e)
+    print(f"An error occurred:\n\n{message}\n\nIgnoring and moving on.")
+    tables = pd.DataFrame()
+
+display_dataframe_as_table( tables )
+```
+
+## Listing of sample data
+
+To generate a listing of sample data from each table in the HR database, the existing code from explore.qmd is modified to retrieve the first few records instead of schema information. The function show_table is defined to accept a table name as a parameter. Inside this function, the SQL query is updated to execute SELECT * FROM {table_name} LIMIT 10;, which selects the first ten records from the specified table. This modification allows the function to display a sample of the actual data contained within the table.
+
+The code then retrieves a list of all table names in the database by executing SHOW TABLES. It iterates through each table name and calls the show_table function to display the sample data for that table. If any errors occur during the execution of the SQL commands, the code catches these exceptions and prints an error message, allowing the process to continue without interruption. As a result, when this code is executed, it provides a concise view of the first ten records from each table, giving insight into the structure and contents of the HR database.
+
+```{python}
+def show_table(table_name):
+    """ Show a table using Display and Markdown """
+    # Change the query to select the first 10 records from the specified table
+    query = f"""
+    SELECT * FROM {table_name} LIMIT 10;
+    """
+    try:
+        fields = pd.read_sql(query, cnx)
+        display_dataframe_as_table(fields)
+
+    except Exception as e:
+        message = str(e)
+        print(f"An error occurred:\n\n{message}\n\nIgnoring and moving on.")
+
+try:
+    table_names = cnx.connect().execute(text("show tables"))
+    for table_name in table_names:
+        show_table(table_name[0])
+except Exception as e:
+    message = str(e)
+    print(f"An error occurred:\n\n{message}\n\nIgnoring and moving on.")
+    table_names = pd.DataFrame()
+
+```
+
+# Reflection
+
+1. Please add a paragraph or two about how this project went.
+
+Getting everything to work on the software side was extremely difficult. I downloaded all of the packages early in the week, and then was unable to get them to run in VS code. Everything worked in the windows terminal, but not in VScode. In the end I needed to run everything through the terminal and only use VS code to edit. Previously in the semester I used the short-cut to compile my qmd files and the instructions also suggested the same thing, this however does not work as it reverts to a different env that does not contain jupyter. It took at least 4 hours for me to be able to render the explore qmd once I had already gotten all of the software to work. Once I was able to render the qmd file, I then could not get the tables to work properly, they would only print the column names but nothing inside of the columns. This happened because when I set up the connection I used my user database instead of the hr one. I also didn't know if we were supposed to edit the explore file (it was listed as written by Dr. Leonard which typically means do not edit), but I needed to change the select command to the proper database so the connection was the same as the database I was querying. 
+
+2. Was it harder or easier than you expected?
+
+Loading the initial packages was very straight-forward, the website was very helpful. That process was much simpler than I expected. Rendering the qmd file once I loaded the packages was much more difficult than I predicted.  
+
+
+3. Did the instructor provide too much information or not enough information?
+
+I think he provided a good amount of information spread between lecture and the website. 
+
+4. Do you have suggestions for how it can be improved?
+
+I did not set up a poetry init, I still don't know if I was supposed to or not. 
+The "How do you know your tools are working together?" section is a little misleading, some of the commands either don't work with the way we set up the env, or they aren't explained very well.
+
+5. How does this assignment relate to project deliverable 5?
+
+Deliverable 5 focused on us defining the scope of our database, including the problem domain and the need for our database. Generating a list of the SQL tables and fields helps determine the problem domain and need for a structured solution. Seeing a previous designed database helps us understand why we need to clearly define the need for our database.
