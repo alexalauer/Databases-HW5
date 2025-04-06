@@ -38,12 +38,6 @@ Follow these steps to set up your environment and start working with the project
    ```
 
 3. Create a `.env` file in your home directory and add your MySQL credentials:
-    ```bash
-   USER=24FA_<your EID>
-   PASSWORD=Shout4_<your EID>_JOY
-   HOST=cmsc508.com
-   DATABASE=24fa_hr_24fa_jdleonard
-   ```
 
 ## Usage
 
