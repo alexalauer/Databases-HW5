@@ -71,4 +71,4 @@ This project is part of the CMSC408 course and is for educational purposes.
 
 For any questions or concerns, please contact:
 
-- **Alexa Lauer** - [Email](lauera@vcu.edu)
+- **Alexa Lauer** - lauera@vcu.edu
